@@ -1,0 +1,91 @@
+SELECT
+   distinct
+   ba.*,
+   cd.airlinecode AS pt_airlinecode,
+   cd.destination,
+   cd.origin,
+   cd.campaigntype,
+   cd.airlinename,
+   cd.language,
+   cd.market,
+   cd.marketingnetwork,
+   cd.routetype
+ FROM
+   ((SELECT
+       'Google'                  AS searchengine,
+       ad.campaignname,
+       ad.adgroupname,
+       ''                        AS averageposition,
+       ad.clicks,
+       ad.accountcurrencycode,
+       ad.cost                   AS cost,
+       ad.conversionvalue        AS revenue,
+       ad.conversions,
+       ad.allconversions,
+       ad.date,
+       ad.impressions,
+       ad.accountdescriptivename AS accountname,
+       'xx'                      AS airlinecode,---Fill in airlineIataCode
+       ad.adnetworktype1,
+       CASE
+       WHEN ad.device = 'Tablets with full browsers'
+         THEN 'Tablets'
+       WHEN ad.device = 'Mobile devices with full browsers'
+         THEN 'Mobile'
+       WHEN ad.device = 'Computers'
+         THEN 'Computers'
+       ELSE 'Other'
+       END                       AS device,
+       coalesce(cast(ad.allconversionvalue as FLOAT),0) AS allconversionvalue,
+       cast(coalesce(nullif(regexp_replace(searchimpressionshare,'[^0-9.]+',''),''),'10') as Float)/100 as impressionshare,
+       topimpressionpercentage,
+       absolutetopimpressionpercentage
+     FROM vw_adwords_performance_data ad
+     WHERE ad.main_cc_id = 'xxxxxxxxxx' ---Fill in main_cc_id for the corresponding airline
+       --AND ad.cc_id not in ('xxxxxxxxxx','xxxxxxxxxx')  --Check Google Sheet Tab 2: Accounts should be Excluded from SEM Reports
+       AND ad.date >= date_trunc('year', current_date - interval '1 year'))
+
+UNION ALL
+
+      (SELECT
+       'Bing'            AS searchengine,
+       bg.campaignname,
+       bg.adgroupname,
+       bg.averageposition,
+       bg.clicks,
+       bg.currencycode   AS accountcurrencycode,
+       bg.spend          AS cost,
+       bg.revenue,
+       bg.conversions,
+       NULL              AS allconversions,
+       bg.gregoriandate  AS date,
+       bg.impressions,
+       bg.accountname as accountname,
+       LOWER(bg.airline) AS airlinecode,
+       bg.network AS adnetworktype1,
+       CASE
+       WHEN bg."device type" = 'Tablet'
+         THEN 'Tablets'
+       WHEN bg."device type" = 'Smartphone'
+         THEN 'Mobile'
+       WHEN bg."device type" = 'Computer'
+         THEN 'Computers'
+       ELSE 'Other'
+       END               AS device,
+       '0.0' AS allconversionvalue,
+       coalesce(cast(bg.impressionsharepercent as float),0)  AS impressionshare,
+       '0.0' AS topimpressionpercentage,
+       '0.0' AS absolutetopimpressionpercentage
+     FROM custom.vw_bing_adgroup_performance_report bg
+     WHERE lower(bg.airline) = 'xx' ---Fill in airlineIataCode
+     and bg.gregoriandate>=date_trunc('year', current_date - interval '1 year'))) ba
+  
+ LEFT JOIN (SELECT DISTINCT marketingnetwork,market,routetype,language,origin,destination,
+         searchengine,adgroupname,campaignname,campaigntype,airlinename,airlinecode,accountname
+              FROM custom.vw_campaigns_adgroups_decoded) cd
+     ON     upper(ba.airlinecode) = upper(cd.airlinecode)
+        AND lower(ba.searchengine) = lower(cd.searchengine)
+        AND ba.campaignname = cd.campaignname
+        AND ba.adgroupname = cd.adgroupname
+        AND ba.accountname=cd.accountname
+;
