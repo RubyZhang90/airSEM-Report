@@ -1,0 +1,60 @@
+DROP VIEW datacore.custom.vw_adwords_performance_data_new;
+
+CREATE VIEW datacore.custom.vw_adwords_performance_data_new AS
+
+SELECT 
+adg_hist.*,
+camp_hist.searchbudgetlostimpressionshare,
+camp_hist.searchranklostimpressionshare
+FROM
+(SELECT 
+_id, date, campaignstatus, accountdescriptivename, campaignname,adgroupname, adnetworktype1, device, impressions, clicks, 
+cost, conversions, conversionvalue,accountcurrencycode, searchimpressionshare,topimpressionpercentage, absolutetopimpressionpercentage,averageposition,
+main_cc_id, cc_id, batch_id,__createdat
+FROM adgroup_performance_report_by_device_historical_001) adg_hist 
+
+left join
+
+(select distinct 
+main_cc_id, cc_id,campaignname,date,device,searchbudgetlostimpressionshare,searchranklostimpressionshare
+from datacore.public.adwords_campaign_report_by_device_001 )camp_hist 
+
+on adg_hist.main_cc_id = camp_hist.main_cc_id
+and adg_hist.cc_id = camp_hist.cc_id
+and adg_hist.campaignname = camp_hist.campaignname
+and adg_hist.date = camp_hist.date
+and adg_hist.device = camp_hist.device
+
+
+UNION ALL 
+
+(SELECT 
+adg_day.*,
+camp_day.searchbudgetlostimpressionshare,
+camp_day.searchranklostimpressionshare
+FROM
+(SELECT 
+_id, date, campaignstatus, accountdescriptivename, campaignname,adgroupname, adnetworktype1, device, impressions, clicks, 
+cost, conversions, conversionvalue,accountcurrencycode, searchimpressionshare,topimpressionpercentage, absolutetopimpressionpercentage,averageposition,
+main_cc_id, cc_id, batch_id,__createdat
+FROM adgroup_performance_report_by_device_003 
+  where batch_id =(select max(batch_id) from adgroup_performance_report_by_device_003)
+) adg_day
+
+left join
+
+(select distinct 
+main_cc_id, cc_id,campaignname,date,device,searchbudgetlostimpressionshare,searchranklostimpressionshare
+from datacore.public.adwords_campaign_report_by_device_001 
+where batch_id =(select max(batch_id) from datacore.public.adwords_campaign_report_by_device_001)
+)camp_day 
+
+on adg_day.main_cc_id = camp_day.main_cc_id
+and adg_day.cc_id = camp_day.cc_id
+and adg_day.campaignname = camp_day.campaignname
+and adg_day.date = camp_day.date
+and adg_day.device = camp_day.device
+);
+COMMIT;
+
+GRANT SELECT ON datacore.custom.vw_adwords_performance_data_new TO PUBLIC;
