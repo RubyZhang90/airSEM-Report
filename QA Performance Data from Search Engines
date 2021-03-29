@@ -1,0 +1,61 @@
+--NOTE: conversions (Bookings) and conversionvalue (Revenue) in the previous 30 days won't match excatly to the numbers on interface due to the cookies effect. 
+--Other KPIs should match exactly to the numbers on interface; conversions and conversionvalue earlier than the previous 30 days should match as well. 
+
+
+--GOOGLE
+--Check data in the historical table and compare it with the numbers on interface.
+SELECT DISTINCT
+campaignname,
+adgroupname,
+device,
+sum(impressions) as impressions,
+sum(clicks) as clicks,
+sum(cost) as cost
+from adgroup_performance_report_by_device_historical_001
+where main_cc_id = 'xxxxxxxxxx'
+--and cc_id='xxxxxxxxxx'
+--and date::DATE = 'YYYY-MM-DD';
+
+--Check data in the daily updating table and compare it with the numbers on interface.
+SELECT DISTINCT
+campaignname,
+adgroupname,
+device,
+sum(impressions) as impressions,
+sum(clicks) as clicks,
+sum(cost) as cost
+from adgroup_performance_report_by_device_003
+where batch_id =(select max(batch_id) from adgroup_performance_report_by_device_003)
+and main_cc_id = 'xxxxxxxxxx'
+--and cc_id='xxxxxxxxxx'
+--and date::DATE = 'YYYY-MM-DD';
+
+
+--BING
+--Check data in the historical table and compare it with the numbers on interface.
+SELECT DISTINCT
+campaignname,
+adgroupname,
+"device type",
+sum(impressions) as impressions,
+sum(clicks) as clicks,
+sum(spend) as cost
+from bing_adgroup_performance_report_static_004
+where accountname like 'UPPER(airlineIataCode)_%' --Enter the uppercase airlineIataCode in the single quote 
+--and gregoriandate::DATE = 'YYYY-MM-DD';
+
+--Check data in the daily updating table and compare it with the numbers on interface.
+SELECT DISTINCT
+campaignname,
+adgroupname,
+device,
+sum(impressions) as impressions,
+sum(clicks) as clicks,
+sum(cost) as cost
+from bing_adgroup_performance_report_009
+where batch_id =(select max(batch_id) from bing_adgroup_performance_report_009)
+and accountname like 'UPPER(airlineIataCode)_%' --Enter the uppercase airlineIataCode in the single quote 
+--and gregoriandate::DATE = 'YYYY-MM-DD';
+
+--OTHER SEARCH ENGINES
+--Find the custom view/table in Redshift, check the SQL source and construct the SQL query for QA purposes. 
