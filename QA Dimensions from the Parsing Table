@@ -1,0 +1,17 @@
+--NOTE: Ensure all dimensions have valid values. 
+--Exception: For Brand Campaigns, “N/A” is valid for Origin and Destination. 
+
+SELECT DISTINCT
+accountname,
+campaignname, 
+--adgroupname,
+campaigntype,
+market, 
+language, 
+origin, 
+destination
+FROM datacore.custom.vw_campaigns_adgroups_decoded
+WHERE upper(airlinecode)='AV'   --Change the airlineIataCode here
+--and accountname like 'AV_%'   --Only applys to see EM Managed Accounts
+--upper(campaigntype) in ('','N/A','UNDEFINED')   --Check records with invalid campaign type. This statemnt works also for other dimensions by changing the dimension name. 
+--ORDER BY accountname,campaignname, campaigntype,market, language, origin, destination;
