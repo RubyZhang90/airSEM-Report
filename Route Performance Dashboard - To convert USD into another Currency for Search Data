@@ -1,0 +1,41 @@
+Select 
+FN.*,CC.avg_exchangerate,OC.orig_country,DC.dest_country
+FROM
+(select 
+airlineiatacode as airline_code,
+departureairportiatacode as orig,
+arrivalairportiatacode as dest,
+devicecategory as device,
+languageisocode as lang,
+flighttype,
+count(distinct farenetid) as searches,
+(cast(farenettimestamp as timestamp) :: DATE AT TIME ZONE 'UTC') AT TIME ZONE 'EST' AS "Search Date",
+siteedition as site_edition,
+currencycode,
+totalprice,
+totalpriceusd
+from datacore.public.normalized_farenet_001
+where 
+__createdat >= '2021-02-18'::TIMESTAMP --change the date to the starting date of this airline in Farenet.
+and upper(airlineiatacode)='XX' --change the airlineIataCode here.
+and (cast(farenettimestamp as timestamp) :: DATE AT TIME ZONE 'UTC') AT TIME ZONE 'EST' >= '2021-02-18' --change the date to the starting date of this airline in Farenet.
+--and isusersearch = TRUE  --Enable this line if the starting date is after 08/2019.
+group by airlineiatacode,departureairportiatacode,arrivalairportiatacode,
+devicecategory,languageisocode,flighttype,siteedition,currencycode,totalprice,totalpriceusd,farenettimestamp ) FN
+
+left join 
+(select (cast(farenettimestamp as timestamp) :: DATE AT TIME ZONE 'UTC') AT TIME ZONE 'EST' AS "Search Date_Currency",
+currencycode as currency,
+avg(exchangerate) as avg_exchangerate 
+from datacore.public.normalized_farenet_001
+where 
+__createdat >= '2021-02-18'::TIMESTAMP --change the date to the starting date of this airline in Farenet.
+and upper(airlineiatacode)='XX' --change the airlineIataCode here.
+and upper(currencycode)='XXX' --change the currency code here.
+and (cast(farenettimestamp as timestamp) :: DATE AT TIME ZONE 'UTC') AT TIME ZONE 'EST' >= '2021-02-18' --change the date to the starting date of this airline in Farenet.
+--and isusersearch = TRUE --Enable this line if the starting date is after 08/2019.
+group by "Search Date_Currency",currency) CC on FN."Search Date"=CC."Search Date_Currency"
+
+left join (select distinct iata_code as orig_iata_code, country_code as orig_country from datacore.custom.core_dictionary) OC on upper(FN."orig")=upper(OC."orig_iata_code")
+
+left join (select distinct iata_code as dest_iata_code, country_code as dest_country from datacore.custom.core_dictionary) DC on upper(FN."dest")=upper(DC."dest_iata_code")
