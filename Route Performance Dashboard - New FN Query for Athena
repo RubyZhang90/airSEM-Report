@@ -1,0 +1,76 @@
+SELECT 
+ANF.*,
+ANC.*,
+CDD.countryname AS orig_country,
+CDA.countryname AS dest_country
+FROM
+            (SELECT 
+             airlineiatacode,
+             farenetdate,
+             departureairportiatacode,
+             arrivalairportiatacode,
+             journeytype,
+             departuredate,
+             returndate,
+             outboundfareclass,
+             inboundfareclass,
+             flighttype,
+             devicecategory,  -- Remove the fields along with removing respective joins
+             siteedition , -- Remove the fields along with removing respective joins
+             SUM(searches) AS searches,
+             AVG(averagepriceusd) AS averagepriceusd
+             FROM "farenet_s3"."aggregated_normalized_farenet_001"
+             WHERE farenetdate >= DATE('2020-01-01')
+             AND farenetdate < current_date
+             AND airlineiatacode ='XX'
+             GROUP BY airlineiatacode, farenetdate, departureairportiatacode, arrivalairportiatacode,
+                  journeytype, departuredate, returndate, outboundfareclass, inboundfareclass, flighttype
+                 , siteedition   -- Remove the fields along with removing respective joins                                
+                 , devicecategory  -- Remove the fields along with removing respective joins
+             ) AS ANF
+
+LEFT JOIN
+             (SELECT DISTINCT 
+             airlineiatacode          AS "anc_airlineiatacode",
+             farenetconfirmationdate  AS "anc_farenetconfirmationdate",
+             departureairportiatacode AS "anc_departureairportiatacode",
+             arrivalairportiatacode   AS "anc_arrivalairportiatacode",
+             journeytype              AS "anc_journeytype",
+             departuredate            AS "anc_departuredate",
+             returndate               AS "anc_returndate",
+             outboundfareclass        AS "anc_outboundfareclass",
+             inboundfareclass         AS "anc_inboundfareclass",
+             flighttype              AS "anc_flighttype",
+             siteedition              AS "anc_siteedition",      -- Remove the fields along with removing respective joins      
+             devicecategory           AS "anc_devicecategory",  -- Remove the fields along with removing respective joins      
+             sum(bookings)            AS conversions,
+             sum(revenue)             AS revenue
+              FROM farenet_s3.aggregated_normalized_farenet_confirmation_001
+              WHERE airlineiatacode = 'XX'
+                AND farenetconfirmationdate >= DATE('2020-01-01')      
+                AND farenetconfirmationdate < current_date
+              GROUP BY airlineiatacode, farenetconfirmationdate, departureairportiatacode, arrivalairportiatacode,
+                  journeytype, departuredate, returndate, outboundfareclass, inboundfareclass, flighttype
+                 , siteedition  -- Remove the fields along with removing respective joins                                 
+                 , devicecategory    -- Remove the fields along with removing respective joins                            
+             ) AS ANC
+             ON (ANF.airlineiatacode = ANC.anc_airlineiatacode
+                 AND ANF.farenetdate = ANC."anc_farenetconfirmationdate"
+                 AND ANF.departureairportiatacode = ANC.anc_departureairportiatacode
+                 AND ANF.arrivalairportiatacode = ANC.anc_arrivalairportiatacode
+                 AND ANF.journeytype = ANC.anc_journeytype
+                 AND ANF.departuredate = ANC.anc_departuredate
+                 AND (ANF.returndate = ANC.anc_returndate
+                     OR ANC.anc_returndate is null)
+                 AND ANF.outboundfareclass = ANC.anc_outboundfareclass
+                 AND (ANF.inboundfareclass = ANC.anc_inboundfareclass
+                     OR ANC.anc_inboundfareclass is null)
+                 AND ANF.siteedition = ANC.anc_siteedition              -- Remove the fields along with removing respective joins
+                 AND ANF.devicecategory = ANC.anc_devicecategory        -- Remove the fields along with removing respective joins
+                 )
+
+
+JOIN farenet_s3.core_dictionary_001 CDD on ANF.departureairportiatacode = CDD.iatacode
+JOIN  farenet_s3.core_dictionary_001 CDA on ANF.arrivalairportiatacode = CDA.iatacode
+
+;
