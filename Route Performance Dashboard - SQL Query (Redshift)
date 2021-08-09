@@ -1,0 +1,75 @@
+SELECT 
+NF.*,
+NC.*,
+CDLD.countryname AS orig_country,
+CDLA.countryname AS dest_country
+FROM
+            (SELECT 
+             UPPER(airlineiatacode) as airlineiatacode,
+             farenettimestamp::DATE as farenetdate,
+             departureairportiatacode,
+             arrivalairportiatacode,
+             journeytype,
+             departuredate,
+             returndate,
+             outboundfareclass,
+             inboundfareclass,
+             flighttype,
+             devicecategory,  -- Remove the fields along with removing respective joins
+             siteedition , -- Remove the fields along with removing respective joins
+             COUNT(DISTINCT farenetid) AS searches,
+             AVG(totalpriceusd) AS averagepriceusd
+             FROM datacore.public.normalized_farenet_001
+             WHERE "__createdat" >= '2020-01-01'::TIMESTAMP AND "__createdat" < current_date ::TIMESTAMP 
+             AND farenetdate >= DATE('2020-01-01') AND farenetdate < current_date
+             AND UPPER(airlineiatacode) ='XX'
+             AND isusersearch = TRUE
+             GROUP BY "airlineiatacode", "farenetdate", departureairportiatacode, arrivalairportiatacode,
+                  journeytype, departuredate, returndate, outboundfareclass, inboundfareclass, flighttype
+                 , siteedition   -- Remove the fields along with removing respective joins                                
+                 , devicecategory  -- Remove the fields along with removing respective joins
+             ) AS NF
+
+LEFT JOIN
+             (SELECT DISTINCT 
+             UPPER(airlineiatacode)   AS "nc_airlineiatacode",
+             farenetconfirmationtimestamp::DATE  AS "nc_farenetconfirmationdate",
+             departureairportiatacode AS "nc_departureairportiatacode",
+             arrivalairportiatacode   AS "nc_arrivalairportiatacode",
+             journeytype              AS "nc_journeytype",
+             departuredate            AS "nc_departuredate",
+             returndate               AS "nc_returndate",
+             outboundfareclass        AS "nc_outboundfareclass",
+             inboundfareclass         AS "nc_inboundfareclass",
+             flighttype              AS "nc_flighttype",
+             siteedition              AS "nc_siteedition",      -- Remove the fields along with removing respective joins      
+             devicecategory           AS "nc_devicecategory",  -- Remove the fields along with removing respective joins      
+             COUNT(DISTINCT farenetconfirmationid)            AS conversions,
+             sum(totalpriceusd)             AS revenue
+              FROM datacore.public.normalized_farenet_confirmation_001
+              WHERE "__createdat" >= '2020-01-01'::TIMESTAMP AND "__createdat" < current_date ::TIMESTAMP 
+                AND "nc_farenetconfirmationdate" >= DATE('2020-01-01') AND "nc_farenetconfirmationdate" < current_date
+                AND UPPER(airlineiatacode) ='XX'
+              GROUP BY "nc_airlineiatacode", "nc_farenetconfirmationdate", "nc_departureairportiatacode", "nc_arrivalairportiatacode",
+                  "nc_journeytype", "nc_departuredate", "nc_returndate", "nc_outboundfareclass", "nc_inboundfareclass", "nc_flighttype"
+                 , "nc_siteedition"  -- Remove the fields along with removing respective joins                                 
+                 , "nc_devicecategory"    -- Remove the fields along with removing respective joins                            
+             ) AS NC
+             ON (NF.airlineiatacode = NC.nc_airlineiatacode
+                 AND NF.farenetdate = NC."nc_farenetconfirmationdate"
+                 AND NF.departureairportiatacode = NC.nc_departureairportiatacode
+                 AND NF.arrivalairportiatacode = NC.nc_arrivalairportiatacode
+                 AND NF.journeytype = NC.nc_journeytype
+                 AND NF.departuredate = NC.nc_departuredate
+                 AND (NF.returndate = NC.nc_returndate
+                     OR NC.nc_returndate is null)
+                 AND NF.outboundfareclass = NC.nc_outboundfareclass
+                 AND (NF.inboundfareclass = NC.nc_inboundfareclass
+                     OR NC.nc_inboundfareclass is null)
+                 AND NF.siteedition = NC.nc_siteedition              -- Remove the fields along with removing respective joins
+                 AND NF.devicecategory = NC.nc_devicecategory        -- Remove the fields along with removing respective joins
+                 )
+
+
+JOIN datacore.custom.latest_core_dictionary CDLD on NF.departureairportiatacode = CDLD.iatacode
+JOIN  datacore.custom.latest_core_dictionary CDLA on NF.arrivalairportiatacode = CDLA.iatacode
