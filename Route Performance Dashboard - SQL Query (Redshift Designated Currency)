@@ -78,7 +78,7 @@ LEFT JOIN
                  
               LEFT JOIN
              
-             (SELECT farenetconfirmationtimestamp::DATE AS "Search Date_Currency",
+             (SELECT farenetconfirmationtimestamp::DATE AS "Book Date_Currency",
               currencycode as currency,
               avg(exchangerate) as avg_exchangerate 
               FROM datacore.public.normalized_farenet_confirmation_001
@@ -86,9 +86,9 @@ LEFT JOIN
               __createdat >= '2021-02-18'::TIMESTAMP --change the date to the starting date of this airline in Farenet.
               AND upper(airlineiatacode)='XX' --change the airlineIataCode here.
               AND upper(currencycode)='ZAR' --change the currency code here.
-              GROUP BY "Search Date_Currency",currency) CCC 
+              GROUP BY "Book Date_Currency",currency) CCC 
               
-              ON NC."nc_farenetconfirmationdate" = CCC."Search Date_Currency"
+              ON NC."nc_farenetconfirmationdate" = CCC."Book Date_Currency"
                          
              ) AS NCCCC
 
