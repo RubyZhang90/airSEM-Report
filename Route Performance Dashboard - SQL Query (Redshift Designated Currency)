@@ -1,12 +1,18 @@
 SELECT 
-NFCC.*,
-NCCCC.*,
-CDLD.countryname AS orig_country,
-CDLA.countryname AS dest_country
+NF.airlineiatacode,
+NF.farenetdate,
+NF.departureairportiatacode,
+NF.arrivalairportiatacode,
+NF.flighttype,
+NF.siteedition,
+NF.searches,
+NF.averagepriceusd,
+NC.conversions,
+NC.revenue,
+CC.avg_exchangerate
 FROM
-            (SELECT NF.*, CC.avg_exchangerate 
-             FROM
-             (SELECT 
+
+            (SELECT DISTINCT
              UPPER(airlineiatacode) as airlineiatacode,
              farenettimestamp::DATE as farenetdate,
              departureairportiatacode,
@@ -17,8 +23,7 @@ FROM
              outboundfareclass,
              inboundfareclass,
              flighttype,
-             devicecategory,  -- Remove the fields along with removing respective joins
-             siteedition , -- Remove the fields along with removing respective joins
+             siteedition,
              COUNT(DISTINCT farenetid) AS searches,
              AVG(totalpriceusd) AS averagepriceusd
              FROM datacore.public.normalized_farenet_001
@@ -27,31 +32,11 @@ FROM
              AND UPPER(airlineiatacode) ='XX'
              AND isusersearch = TRUE
              GROUP BY "airlineiatacode", "farenetdate", departureairportiatacode, arrivalairportiatacode,
-                  journeytype, departuredate, returndate, outboundfareclass, inboundfareclass, flighttype
-                 , siteedition   -- Remove the fields along with removing respective joins                                
-                 , devicecategory  -- Remove the fields along with removing respective joins
+                  journeytype, departuredate, returndate, outboundfareclass, inboundfareclass, flighttype,siteedition
              ) NF
-                 
-             LEFT JOIN
              
-             (SELECT farenettimestamp::DATE AS "Search Date_Currency",
-              currencycode as currency,
-              avg(exchangerate) as avg_exchangerate 
-              FROM datacore.public.normalized_farenet_001
-              WHERE 
-              __createdat >= '2021-02-18'::TIMESTAMP --change the date to the starting date of this airline in Farenet.
-              AND upper(airlineiatacode)='XX' --change the airlineIataCode here.
-              AND upper(currencycode)='ZAR' --change the currency code here.
-              and isusersearch = TRUE --Enable this line if the starting date is after 08/2019.
-              GROUP BY "Search Date_Currency",currency) CC 
-              
-              ON NF.farenetdate = CC."Search Date_Currency"
-              ) AS NFCC
-
 LEFT JOIN
-             (SELECT NC.*, CCC.avg_exchangerate AS "nc_avg_exchangerate"
-              FROM
-             (SELECT DISTINCT 
+            (SELECT DISTINCT 
              UPPER(airlineiatacode)   AS "nc_airlineiatacode",
              farenetconfirmationtimestamp::DATE  AS "nc_farenetconfirmationdate",
              departureairportiatacode AS "nc_departureairportiatacode",
@@ -62,8 +47,6 @@ LEFT JOIN
              outboundfareclass        AS "nc_outboundfareclass",
              inboundfareclass         AS "nc_inboundfareclass",
              flighttype              AS "nc_flighttype",
-             siteedition              AS "nc_siteedition",      -- Remove the fields along with removing respective joins      
-             devicecategory           AS "nc_devicecategory",  -- Remove the fields along with removing respective joins      
              COUNT(DISTINCT farenetconfirmationid)            AS conversions,
              sum(totalpriceusd)             AS revenue
               FROM datacore.public.normalized_farenet_confirmation_001
@@ -72,41 +55,34 @@ LEFT JOIN
                 AND UPPER(airlineiatacode) ='XX'
               GROUP BY "nc_airlineiatacode", "nc_farenetconfirmationdate", "nc_departureairportiatacode", "nc_arrivalairportiatacode",
                   "nc_journeytype", "nc_departuredate", "nc_returndate", "nc_outboundfareclass", "nc_inboundfareclass", "nc_flighttype"
-                 , "nc_siteedition"  -- Remove the fields along with removing respective joins                                 
-                 , "nc_devicecategory"    -- Remove the fields along with removing respective joins   
                  ) NC
                  
-              LEFT JOIN
-             
-             (SELECT farenetconfirmationtimestamp::DATE AS "Book Date_Currency",
+                 ON (NF.airlineiatacode = NC.nc_airlineiatacode
+                 AND NF.farenetdate = NC."nc_farenetconfirmationdate"
+                 AND NF.departureairportiatacode =NC.nc_departureairportiatacode
+                 AND NF.arrivalairportiatacode = NC.nc_arrivalairportiatacode
+                 AND NF.journeytype = NC.nc_journeytype
+                 AND NF.departuredate = NC.nc_departuredate
+                 AND (NF.returndate = NC.nc_returndate
+                     OR NC.nc_returndate is null)
+                 AND NF.outboundfareclass = NC.nc_outboundfareclass
+                 AND (NF.inboundfareclass = NC.nc_inboundfareclass
+                     OR NC.nc_inboundfareclass is null))
+                     
+LEFT JOIN 
+             (SELECT DISTINCT
+              farenettimestamp::DATE AS "Search Date_Currency",
               currencycode as currency,
               avg(exchangerate) as avg_exchangerate 
-              FROM datacore.public.normalized_farenet_confirmation_001
+              FROM datacore.public.normalized_farenet_001
               WHERE 
               __createdat >= '2021-02-18'::TIMESTAMP --change the date to the starting date of this airline in Farenet.
               AND upper(airlineiatacode)='XX' --change the airlineIataCode here.
-              AND upper(currencycode)='ZAR' --change the currency code here.
-              GROUP BY "Book Date_Currency",currency) CCC 
+              AND upper(currencycode)='CAD' --change the currency code here.
+              and isusersearch = TRUE --Enable this line if the starting date is after 08/2019.
+              GROUP BY "Search Date_Currency",currency) CC 
               
-              ON NC."nc_farenetconfirmationdate" = CCC."Book Date_Currency"
-                         
-             ) AS NCCCC
+              ON NF.farenetdate = CC."Search Date_Currency"
 
-                 ON (NFCC.airlineiatacode = NCCCC.nc_airlineiatacode
-                 AND NFCC.farenetdate = NCCCC."nc_farenetconfirmationdate"
-                 AND NFCC.departureairportiatacode =NCCCC.nc_departureairportiatacode
-                 AND NFCC.arrivalairportiatacode = NCCCC.nc_arrivalairportiatacode
-                 AND NFCC.journeytype = NCCCC.nc_journeytype
-                 AND NFCC.departuredate = NCCCC.nc_departuredate
-                 AND (NFCC.returndate = NCCCC.nc_returndate
-                     OR NCCCC.nc_returndate is null)
-                 AND NFCC.outboundfareclass = NCCCC.nc_outboundfareclass
-                 AND (NFCC.inboundfareclass = NCCCC.nc_inboundfareclass
-                     OR NCCCC.nc_inboundfareclass is null)
-                 AND NFCC.siteedition = NCCCC.nc_siteedition              -- Remove the fields along with removing respective joins
-                 AND NFCC.devicecategory = NCCCC.nc_devicecategory        -- Remove the fields along with removing respective joins
-                 )
-
-
-JOIN datacore.custom.latest_core_dictionary CDLD on NFCC.departureairportiatacode = CDLD.iatacode
-JOIN  datacore.custom.latest_core_dictionary CDLA on NFCC.arrivalairportiatacode = CDLA.iatacode
+--JOIN datacore.custom.latest_core_dictionary CDLD on NF.departureairportiatacode = CDLD.iatacode
+--JOIN  datacore.custom.latest_core_dictionary CDLA on NF.arrivalairportiatacode = CDLA.iatacode
